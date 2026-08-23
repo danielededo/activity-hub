@@ -15,7 +15,7 @@ import { haversineDistance } from './geo'
  * consecutive ones can be hundreds of metres apart quite legitimately, and a
  * distance ceiling would throw away real riding at a high stride.
  */
-export const IMPLAUSIBLE_SPEED_MS = 120_000 / 3_600
+const IMPLAUSIBLE_SPEED_MS = 120_000 / 3_600
 
 /**
  * Cumulative metres and seconds along a track, and the speed of each hop.
@@ -79,7 +79,7 @@ export function distanceSeries(samples) {
 }
 
 /** How many points a comparison grid gets. More than any chart has pixels for. */
-export const GRID_POINTS = 240
+const GRID_POINTS = 240
 
 /**
  * Two or more distance series resampled onto one shared grid.

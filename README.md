@@ -1,13 +1,20 @@
 # Activity Hub
 
 [![CI](https://github.com/Danielededo/activity-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/Danielededo/activity-hub/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](backend/requirements.txt)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](backend/requirements.txt)
+[![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](frontend/package.json)
+[![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](docker-compose.yml)
 
 Self-hosted training log. Feed it the FIT, TCX and GPX files your watch or
 Strava exports, and get your history back as numbers and charts that stay on
 your own machine.
 
 One user, no accounts, no external services, no telemetry. Units are metric
-throughout.
+throughout. There is no map tile server either: drawing your routes over a
+borrowed basemap would mean telling a stranger where you exercise, which is
+the opposite of the point.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/dashboard-dark.png">
@@ -294,7 +301,7 @@ PostgreSQL.
 
 | Job | What it proves |
 | --- | --- |
-| Lint and test | `ruff check` and `ruff format` are clean and the backend suite passes |
+| Lint and test | `ruff check` and `ruff format` are clean, the backend suite passes, and coverage is at or above 90% — the run fails below it |
 | Migrations on PostgreSQL | The schema applies to a real PostgreSQL 16, `alembic check` finds no drift from the models, and the downgrade path works |
 | Frontend lint, test and build | ESLint is clean, the jsdom suite passes, and the bundle builds |
 | Images and compose stack | Both images build, the stack comes up health-gated, and a profile plus an upload round-trips through the dashboard's own origin |
