@@ -41,8 +41,12 @@ jobs:
       - name: Format
         run: ruff format --check .
 
+      # The floor is enforced rather than advertised: a number in the README
+      # goes stale the first time somebody adds a module and forgets, and a
+      # badge only reports what already happened. Actual coverage is 96%, so
+      # 90 leaves headroom for a change to be in progress without blocking it.
       - name: Test
-        run: pytest --cov=app --cov-report=term-missing
+        run: pytest --cov=app --cov-report=term-missing --cov-fail-under=90
 
   migrations:
     name: Migrations on PostgreSQL
