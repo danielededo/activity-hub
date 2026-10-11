@@ -39,21 +39,27 @@ class DuplicateWorkoutError(WorkoutServiceError):
         self.reason = reason
 
 
-def find_duplicate(db: Session, user_id: int, parsed, file_hash: str) -> tuple[int, str] | None:
-    """Find an existing workout that is the same session as `parsed`.
+def find_identical(db: Session, user_id: int, file_hash: str) -> tuple[int, str] | None:
+    """Find an existing workout stored from exactly these bytes.
 
-    Two questions, because they need different answers. Byte-identical files
-    are caught by their hash — exact, cheap, and enforced by the database.
-    The same ride exported from Garmin as TCX and from Strava as GPX has
-    different bytes and a different `source`, so it can only be recognised by
-    what it describes: same sport, starting at practically the same moment.
+    Exact, cheap, and enforced by the database — and answerable before the file
+    is parsed, which is what makes re-sending an export fast: parsing is most of
+    the cost of a file, and an export sent twice is almost entirely files
+    already here.
     """
     exact = db.execute(
         select(Workout.id).where(Workout.user_id == user_id, Workout.file_hash == file_hash)
     ).scalar_one_or_none()
-    if exact is not None:
-        return exact, "identical file"
+    return None if exact is None else (exact, "identical file")
 
+
+def find_same_session(db: Session, user_id: int, parsed) -> tuple[int, str] | None:
+    """Find an existing workout that is the same session as `parsed`.
+
+    The same ride exported from Garmin as TCX and from Strava as GPX has
+    different bytes and a different `source`, so it can only be recognised by
+    what it describes: same sport, starting at practically the same moment.
+    """
     window = timedelta(seconds=settings.duplicate_window_seconds)
     near = db.execute(
         select(Workout.id)
@@ -80,12 +86,13 @@ def store_workout(db: Session, user_id: int, filename: str | None, content: byte
     if db.execute(select(User.id).where(User.id == user_id)).scalar_one_or_none() is None:
         raise UserNotFoundError(user_id)
 
-    parsed = parse_file(filename, content)
-
     file_hash = hashlib.sha256(content).hexdigest()
-    duplicate = find_duplicate(db, user_id, parsed, file_hash)
-    if duplicate is not None:
-        raise DuplicateWorkoutError(*duplicate)
+    if (identical := find_identical(db, user_id, file_hash)) is not None:
+        raise DuplicateWorkoutError(*identical)
+
+    parsed = parse_file(filename, content)
+    if (same_session := find_same_session(db, user_id, parsed)) is not None:
+        raise DuplicateWorkoutError(*same_session)
 
     metrics = compute_metrics(parsed)
     workout = Workout(

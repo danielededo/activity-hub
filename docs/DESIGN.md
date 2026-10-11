@@ -118,6 +118,11 @@ within `DUPLICATE_WINDOW_SECONDS` — which no constraint can express, so the
 check lives in the service layer. A brick session still works: a ride and a run
 at the same time are different sports.
 
+**The exact question is asked before the file is parsed.** Parsing is most of
+what a file costs, and an export sent a second time is almost entirely files
+already stored — so hashing first took re-sending a 150-activity export from
+130 s to under a second.
+
 **A backfill that can tell "not computed" from "computed, nothing there" only
 visits an activity once.** The heart-rate histogram records an empty value for an
 activity that carried no heart rate, so a strapless one is not rescanned on every
