@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Danielededo/activity-hub/actions/workflows/ci.yml/badge.svg)](https://github.com/Danielededo/activity-hub/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](backend/requirements.txt)
+[![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](backend/.python-version)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](backend/requirements.txt)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](frontend/package.json)
 [![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](docker-compose.yml)
@@ -262,7 +262,7 @@ Docker is enough to run it; these are for working on it. You need **Python
 ```bash
 # API — http://localhost:8000, docs at /docs
 cd backend
-python -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env             # then uncomment DATABASE_URL and point it at PostgreSQL
 alembic upgrade head
@@ -274,6 +274,16 @@ uvicorn app.main:app --reload
 cd frontend
 npm install
 npm run dev
+```
+
+The version lives in `backend/.python-version`, not in the commands. No Python
+3.11, or a system Python without `venv` and `pip` — as on a fresh Ubuntu or WSL
+— is no obstacle if you have [uv](https://docs.astral.sh/uv/): it reads that
+file, fetches the version itself, and replaces the first two backend lines.
+
+```bash
+uv venv .venv && source .venv/bin/activate
+uv pip install -r requirements.txt
 ```
 
 The dev server proxies `/api` and the nginx image serves the API on the same
