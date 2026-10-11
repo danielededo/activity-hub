@@ -1,3 +1,4 @@
+from app.schemas.sport import SportRead
 from app.schemas.user import UserCreate, UserRead
 from app.schemas.workout import (
     AnalysisSummary,
@@ -33,6 +34,7 @@ __all__ = [
     "RecordHolder",
     "RecordsSummary",
     "SportBreakdown",
+    "SportRead",
     "SportRecords",
     "TrackPointRead",
     "TrackPointSeries",

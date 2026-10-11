@@ -6,6 +6,7 @@ from app.services.parsers.base_parser import (
     ParsedWorkout,
     ParserError,
 )
+from app.services.sports import sport_from_file
 
 #: Substrings in the gpx/@creator attribute that identify the exporting service.
 CREATOR_SOURCES = (
@@ -15,22 +16,6 @@ CREATOR_SOURCES = (
     ("runkeeper", "runkeeper"),
     ("wahoo", "wahoo"),
 )
-
-#: GPX <type> values seen in the wild, mapped onto our sport vocabulary.
-SPORT_ALIASES = {
-    "1": "cycling",
-    "9": "running",
-    "ride": "cycling",
-    "biking": "cycling",
-    "bike": "cycling",
-    "cycling": "cycling",
-    "run": "running",
-    "running": "running",
-    "hike": "hiking",
-    "hiking": "hiking",
-    "walk": "walking",
-    "walking": "walking",
-}
 
 #: Extension element names carrying heart rate / cadence, in priority order.
 HEART_RATE_KEYS = ("hr", "heartrate", "heart_rate", "bpm")
@@ -100,8 +85,7 @@ class GpxParser(BaseParser):
         return self.default_source
 
     def _sport_type(self, track) -> str:
-        declared = (self._text(track, "type") or "").strip().lower()
-        return SPORT_ALIASES.get(declared, declared or "other")
+        return sport_from_file("gpx", self._text(track, "type"))
 
     def _name(self, track, start_time) -> str:
         name = self._text(track, "name")

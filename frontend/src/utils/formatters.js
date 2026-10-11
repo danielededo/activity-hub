@@ -3,10 +3,12 @@
  *
  * Runners read minutes per kilometre and cyclists read kilometres per hour, so
  * the pace helper picks by sport rather than showing one and making the other
- * do arithmetic.
+ * do arithmetic. Which sport reads which way is the sport catalogue's to say.
  */
 
-const PACE_SPORTS = new Set(['running', 'hiking', 'walking'])
+import { sportInfo } from '../sports'
+
+const readsAsPace = (sportType) => sportInfo(sportType).rate === 'pace'
 
 export function formatDistance(metres) {
   if (metres == null) return '—'
@@ -69,7 +71,7 @@ export function formatHeartRate(bpm) {
  * nothing in either format says which convention a file used.
  */
 export function cadenceUnit(sportType) {
-  return PACE_SPORTS.has(sportType) ? 'spm' : 'rpm'
+  return sportInfo(sportType).cadence_unit
 }
 
 export function formatCadence(value, sportType) {
@@ -79,7 +81,7 @@ export function formatCadence(value, sportType) {
 /** Minutes per kilometre for foot sports, km/h for everything else. */
 export function formatPaceOrSpeed(sportType, metres, seconds) {
   if (!metres || !seconds) return '—'
-  if (PACE_SPORTS.has(sportType)) {
+  if (readsAsPace(sportType)) {
     const secondsPerKm = seconds / (metres / 1000)
     const minutes = Math.floor(secondsPerKm / 60)
     const rest = Math.round(secondsPerKm % 60)
@@ -156,8 +158,7 @@ export function formatLocalTime(iso, utcOffsetMinutes) {
 }
 
 export function sportLabel(sportType) {
-  if (!sportType) return 'Other'
-  return sportType.charAt(0).toUpperCase() + sportType.slice(1)
+  return sportInfo(sportType).label
 }
 
 /**

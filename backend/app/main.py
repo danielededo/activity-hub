@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.routers import analysis, exports, health, upload, users, workouts
+from app.routers import analysis, exports, health, sports, upload, users, workouts
 from app.services.parsers import ParserError
 
 app = FastAPI(
@@ -46,7 +46,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module in (health, users, workouts, upload, analysis, exports):
+for module in (health, sports, users, workouts, upload, analysis, exports):
     app.include_router(module.router, prefix=settings.api_prefix)
 
 

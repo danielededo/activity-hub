@@ -1,0 +1,44 @@
+[
+  {
+    "key": "cycling",
+    "label": "Cycling",
+    "rate": "speed",
+    "cadence_unit": "rpm",
+    "color": "cycling"
+  },
+  {
+    "key": "running",
+    "label": "Running",
+    "rate": "pace",
+    "cadence_unit": "spm",
+    "color": "running"
+  },
+  {
+    "key": "hiking",
+    "label": "Hiking",
+    "rate": "pace",
+    "cadence_unit": "spm",
+    "color": "hiking"
+  },
+  {
+    "key": "walking",
+    "label": "Walking",
+    "rate": "pace",
+    "cadence_unit": "spm",
+    "color": "other"
+  },
+  {
+    "key": "swimming",
+    "label": "Swimming",
+    "rate": "speed",
+    "cadence_unit": "rpm",
+    "color": "other"
+  },
+  {
+    "key": "other",
+    "label": "Other",
+    "rate": "speed",
+    "cadence_unit": "rpm",
+    "color": "other"
+  }
+]

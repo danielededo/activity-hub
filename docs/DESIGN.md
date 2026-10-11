@@ -8,6 +8,7 @@ wrong.
 The README is the front door: what the app is, how to run it, what the API
 offers. This is the long half.
 
+- [Sports](#sports)
 - [Reading the files](#reading-the-files)
 - [The numbers](#the-numbers)
 - [The charts](#the-charts)
@@ -18,6 +19,35 @@ offers. This is the long half.
 - [Comparing two activities](#comparing-two-activities)
 - [Narrow screens](#narrow-screens)
 - [Filtering, deleting, exporting](#filtering-deleting-exporting)
+
+## Sports
+
+**A sport is defined in one place.** `backend/app/services/sports.py` holds,
+for each sport, everything that differs between them: its label, whether it
+reads as pace or speed, its cadence unit, its colour, and what each file format
+calls it. Before it, those facts lived in a table per parser and in four places
+in the frontend, and adding a sport meant finding all seven. The parsers read
+the catalogue directly; the dashboard loads it from `GET /api/sports` before it
+renders anything.
+
+**File aliases are per format.** Strava writes `9` for a run in GPX; nothing
+says a `9` means anything in TCX. A shared alias list would make one format's
+quirk another's rule.
+
+**An unknown sport is kept, not folded into "other".** A FIT file that says
+`rowing` is stored as `rowing` and shown by speed in the "other" colour until it
+has an entry — the name is more use than a bucket, and adding the entry later
+needs no backfill, because the stored key was right all along.
+
+**Colour is a slot, not a hue.** The palette has four validated colours and a
+fifth picked by eye can be invisible to a colourblind reader, so a sport names
+one of the four slots. Most take "other"; the distinction a colour cannot carry
+is carried by the label beside it.
+
+**The frontend tests read a copy, and a backend test guards it.** They run
+without a server, so they need the catalogue as a file; the backend suite fails
+the moment that file and the API disagree, so it cannot quietly become a second
+definition.
 
 ## Reading the files
 
