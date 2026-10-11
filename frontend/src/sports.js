@@ -32,7 +32,16 @@ export function sportInfo(key) {
     rate: 'speed',
     cadence_unit: 'rpm',
     color: 'other',
+    has_distance: true,
   }
+}
+
+/**
+ * Whether the sport goes anywhere. Strength does not: its distance, pace,
+ * climb and route are left out rather than shown as zeros.
+ */
+export function hasDistance(key) {
+  return sportInfo(key).has_distance !== false
 }
 
 /** Sort key for display order. Sports the catalogue does not list go last. */

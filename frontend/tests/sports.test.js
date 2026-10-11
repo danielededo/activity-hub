@@ -17,6 +17,7 @@ describe('the sport catalogue', () => {
       rate: 'speed',
       cadence_unit: 'rpm',
       color: 'other',
+      has_distance: true,
     })
     expect(sportColor('rowing')).toBe(palette().other)
   })

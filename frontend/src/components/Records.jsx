@@ -1,3 +1,4 @@
+import { hasDistance } from '../sports'
 import { sportColor } from '../theme'
 import { useColorScheme } from '../hooks/useColorScheme'
 import {
@@ -55,11 +56,13 @@ export default function Records({ bySport, onOpenWorkout }) {
 function SportBlock({ sport, dark, onOpenWorkout }) {
   // "Furthest" rather than "Longest": next to "Longest time" it would not be
   // clear which of the two the number measures.
+  // A sport that goes nowhere has one record worth the name: how long.
+  const moves = hasDistance(sport.sport_type)
   const biggest = [
-    ['Furthest', sport.longest_distance, (value) => formatDistance(value)],
+    moves && ['Furthest', sport.longest_distance, (value) => formatDistance(value)],
     ['Longest time', sport.longest_duration, (value) => formatDuration(value)],
-    ['Biggest climb', sport.biggest_climb, (value) => formatElevation(value)],
-  ]
+    moves && ['Biggest climb', sport.biggest_climb, (value) => formatElevation(value)],
+  ].filter(Boolean)
 
   return (
     <div>
@@ -87,7 +90,7 @@ function SportBlock({ sport, dark, onOpenWorkout }) {
         ))}
       </dl>
 
-      {sport.distance_bests.length > 0 && (
+      {moves && sport.distance_bests.length > 0 && (
         <div className="mt-3 table-scroll">
           <table className="w-full text-sm">
             <caption className="sr-only">

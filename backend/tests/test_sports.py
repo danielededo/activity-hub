@@ -47,6 +47,31 @@ def test_a_known_name_becomes_its_sport(file_format, declared, expected):
     assert sport_from_file(file_format, declared) == expected
 
 
+def test_a_fit_sub_sport_the_catalogue_lists_wins_over_the_sport():
+    assert sport_from_file("fit", "training", "strength_training") == "strength"
+    # Any sport at all: some devices file gym work under fitness_equipment.
+    assert sport_from_file("fit", "fitness_equipment", "Strength_Training") == "strength"
+
+
+def test_a_sub_sport_it_does_not_list_changes_nothing():
+    assert sport_from_file("fit", "fitness_equipment", "indoor_rowing") == "other"
+    assert sport_from_file("fit", "cycling", "road") == "cycling"
+
+
+def test_sub_sports_are_a_fit_matter():
+    assert sport_from_file("gpx", "running", "strength_training") == "running"
+
+
+def test_no_sub_sport_alias_names_two_sports():
+    aliases = [alias for sport in SPORTS for alias in sport.fit_sub]
+
+    assert len(aliases) == len(set(aliases))
+
+
+def test_only_sports_that_go_somewhere_have_a_distance():
+    assert {sport.key for sport in SPORTS if not sport.has_distance} == {"strength"}
+
+
 def test_aliases_belong_to_their_own_format():
     """Strava's "9" means a run in GPX; nothing says it does in TCX."""
     assert sport_from_file("gpx", "9") == "running"
@@ -79,6 +104,7 @@ def test_the_api_lists_the_catalogue_in_order(client):
         "rate": "pace",
         "cadence_unit": "spm",
         "color": "running",
+        "has_distance": True,
     }
 
 

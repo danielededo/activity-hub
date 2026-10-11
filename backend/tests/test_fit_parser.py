@@ -130,6 +130,32 @@ def test_sport_falls_back_to_the_sport_message():
     assert FitParser().parse(builder.build()).sport_type == "running"
 
 
+def test_a_garmin_strength_session_is_strength():
+    """Sport "training" alone is any gym session; the sub-sport says which."""
+    parsed = FitParser().parse(ride(START, sport=10, sub_sport=20, with_position=False))
+
+    assert parsed.sport_type == "strength"
+    assert parsed.name.startswith("Strength ")
+
+
+def test_training_without_a_known_sub_sport_is_still_other():
+    assert FitParser().parse(ride(START, sport=10)).sport_type == "other"
+
+
+def test_the_sub_sport_can_come_from_the_sport_message():
+    builder = FitBuilder()
+    builder.message(0, SPORT, [(0, UINT8, 10), (1, UINT8, 20)])  # training, strength
+    builder.message(1, RECORD, [(253, UINT32, fit_time(START)), (3, UINT8, 110)])
+
+    assert FitParser().parse(builder.build()).sport_type == "strength"
+
+
+def test_the_declared_sport_is_kept_for_later_reclassification():
+    raw = FitParser().parse(ride(START, sport=10, sub_sport=20)).raw_data
+
+    assert (raw["declared_sport"], raw["sub_sport"]) == ("training", "strength_training")
+
+
 def test_unnamed_manufacturer_does_not_become_the_source():
     """fitdecode returns the raw number for a manufacturer it has no name for."""
     assert FitParser().parse(ride(START, manufacturer=64_000)).source == "fit"

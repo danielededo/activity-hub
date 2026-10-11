@@ -4,41 +4,55 @@
     "label": "Cycling",
     "rate": "speed",
     "cadence_unit": "rpm",
-    "color": "cycling"
+    "color": "cycling",
+    "has_distance": true
   },
   {
     "key": "running",
     "label": "Running",
     "rate": "pace",
     "cadence_unit": "spm",
-    "color": "running"
+    "color": "running",
+    "has_distance": true
   },
   {
     "key": "hiking",
     "label": "Hiking",
     "rate": "pace",
     "cadence_unit": "spm",
-    "color": "hiking"
+    "color": "hiking",
+    "has_distance": true
   },
   {
     "key": "walking",
     "label": "Walking",
     "rate": "pace",
     "cadence_unit": "spm",
-    "color": "other"
+    "color": "other",
+    "has_distance": true
   },
   {
     "key": "swimming",
     "label": "Swimming",
     "rate": "speed",
     "cadence_unit": "rpm",
-    "color": "other"
+    "color": "other",
+    "has_distance": true
+  },
+  {
+    "key": "strength",
+    "label": "Strength",
+    "rate": "speed",
+    "cadence_unit": "rpm",
+    "color": "other",
+    "has_distance": false
   },
   {
     "key": "other",
     "label": "Other",
     "rate": "speed",
     "cadence_unit": "rpm",
-    "color": "other"
+    "color": "other",
+    "has_distance": true
   }
 ]

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { hasDistance } from '../sports'
 import { sportColor } from '../theme'
 import { useColorScheme } from '../hooks/useColorScheme'
 import {
@@ -136,7 +137,7 @@ export default function WorkoutTable({
                   {sportLabel(workout.sport_type)}
                 </td>
                 <td className={`${CELL} text-right tabular-nums`}>
-                  {formatDistance(workout.total_distance)}
+                  {hasDistance(workout.sport_type) ? formatDistance(workout.total_distance) : '—'}
                 </td>
                 <td className={`${TIME_COL} ${CELL} text-right tabular-nums`}>
                   {formatDuration(workout.total_time)}
@@ -145,7 +146,9 @@ export default function WorkoutTable({
                   {formatPaceOrSpeed(workout.sport_type, workout.total_distance, workout.total_time)}
                 </td>
                 <td className={`${WIDE_COL} ${CELL} text-right tabular-nums`}>
-                  {formatElevation(workout.total_elevation_gain)}
+                  {hasDistance(workout.sport_type)
+                    ? formatElevation(workout.total_elevation_gain)
+                    : '—'}
                 </td>
                 <td className={`${WIDE_COL} ${CELL} text-right tabular-nums`}>
                   {formatHeartRate(workout.avg_heart_rate)}

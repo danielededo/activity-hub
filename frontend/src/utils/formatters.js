@@ -6,7 +6,7 @@
  * do arithmetic. Which sport reads which way is the sport catalogue's to say.
  */
 
-import { sportInfo } from '../sports'
+import { hasDistance, sportInfo } from '../sports'
 
 const readsAsPace = (sportType) => sportInfo(sportType).rate === 'pace'
 
@@ -78,9 +78,12 @@ export function formatCadence(value, sportType) {
   return value == null ? '—' : `${Math.round(value)} ${cadenceUnit(sportType)}`
 }
 
-/** Minutes per kilometre for foot sports, km/h for everything else. */
+/**
+ * Minutes per kilometre for foot sports, km/h for everything else, and nothing
+ * for a sport that goes nowhere — even if its watch logged a few metres.
+ */
 export function formatPaceOrSpeed(sportType, metres, seconds) {
-  if (!metres || !seconds) return '—'
+  if (!metres || !seconds || !hasDistance(sportType)) return '—'
   if (readsAsPace(sportType)) {
     const secondsPerKm = seconds / (metres / 1000)
     const minutes = Math.floor(secondsPerKm / 60)
