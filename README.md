@@ -262,7 +262,7 @@ Docker is enough to run it; these are for working on it. You need **Python
 ```bash
 # API — http://localhost:8000, docs at /docs
 cd backend
-python3.11 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env             # then uncomment DATABASE_URL and point it at PostgreSQL
 alembic upgrade head
@@ -276,12 +276,13 @@ npm install
 npm run dev
 ```
 
-No Python 3.11, or a system Python without `venv` and `pip` — as on a fresh
-Ubuntu or WSL — is no obstacle if you have [uv](https://docs.astral.sh/uv/): it
-fetches 3.11 itself, and replaces the first two backend lines.
+The version lives in `backend/.python-version`, not in the commands. No Python
+3.11, or a system Python without `venv` and `pip` — as on a fresh Ubuntu or WSL
+— is no obstacle if you have [uv](https://docs.astral.sh/uv/): it reads that
+file, fetches the version itself, and replaces the first two backend lines.
 
 ```bash
-uv venv -p 3.11 .venv && source .venv/bin/activate
+uv venv .venv && source .venv/bin/activate
 uv pip install -r requirements.txt
 ```
 
