@@ -2,6 +2,8 @@
 
 import inspect
 import io
+import re
+from pathlib import Path
 
 import pytest
 from fastapi import UploadFile
@@ -60,6 +62,26 @@ def test_the_archive_cap_is_the_one_that_dominates():
     )
 
     assert parsed.max_request_bytes == 50_000 + MULTIPART_OVERHEAD_BYTES
+
+
+NGINX_CONF = Path(__file__).resolve().parents[2] / "frontend" / "nginx.conf"
+NGINX_UNITS = {"": 1, "k": 1024, "m": 1024**2, "g": 1024**3}
+
+
+@pytest.mark.skipif(not NGINX_CONF.exists(), reason="needs the whole repository")
+def test_the_proxy_admits_the_largest_body_the_api_accepts():
+    """nginx sits in front of the API, so its cap has to be the looser one.
+
+    Below the API's, a full export archive is refused by nginx with an HTML
+    page before FastAPI sees it — which is how a 24m cap once stopped every
+    archive over 24 MiB while the API was ready to take 200.
+    """
+    match = re.search(r"client_max_body_size\s+(\d+)([kmg]?);", NGINX_CONF.read_text(), re.I)
+    assert match, "nginx.conf no longer sets client_max_body_size"
+    proxy_limit = int(match[1]) * NGINX_UNITS[match[2].lower()]
+    defaults = Settings(_env_file=None, database_url="sqlite://")
+
+    assert proxy_limit >= defaults.max_request_bytes
 
 
 def test_cors_origins_accept_a_comma_separated_string():
