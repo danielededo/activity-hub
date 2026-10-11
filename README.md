@@ -172,6 +172,7 @@ Interactive docs at <http://localhost:8000/docs> when the stack is up.
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/api/health` | 503 when the database is unreachable |
+| GET | `/api/sports` | The sport catalogue, in display order: label, `pace` or `speed`, cadence unit, colour |
 | GET | `/api/users/me` | The profile; 404 before one exists |
 | POST | `/api/users/` | Creates the profile; 409 if one already exists |
 | GET | `/api/users/{id}` | |
@@ -300,11 +301,27 @@ dashboard calling the API — and `CORS_ORIGINS` is what it reads.
 For a headless setup that never opens a browser, `python -m scripts.ensure_user`
 creates the profile from `DEFAULT_FIRST_NAME` instead of the first-run screen.
 
+### Adding a sport
+
+Every sport is one entry in `backend/app/services/sports.py`: its key and label,
+whether it reads as pace or speed, its cadence unit, which of the four palette
+colours it takes, and what FIT, TCX and GPX files call it. The parsers and the
+dashboard both read that entry (the dashboard through `GET /api/sports`), so
+nothing else changes. Then regenerate the frontend tests' copy of the catalogue,
+which a backend test keeps in step:
+
+```bash
+cd backend && python -m scripts.export_sports
+```
+
+A sport a file names that has no entry is still stored, under the file's own
+name, and shown by speed in the "other" colour.
+
 ### Tests
 
 ```bash
-cd backend && ruff check . && ruff format --check . && pytest   # 343 tests, no database needed
-cd frontend && npm run lint && npm test                        # 232 tests, jsdom
+cd backend && ruff check . && ruff format --check . && pytest   # 374 tests, no database needed
+cd frontend && npm run lint && npm test                        # 246 tests, jsdom
 ```
 
 The backend suite runs against in-memory SQLite, so there is nothing to
@@ -348,8 +365,9 @@ backend/app/
 ├── database.py        engine, session, declarative base
 ├── models/            User, Workout, TrackPoint, WorkoutBest, ArchiveImport
 ├── schemas/           the request and response shapes
-├── routers/           health, users, workouts, upload, analysis, export
+├── routers/           health, sports, users, workouts, upload, analysis, export
 └── services/
+    ├── sports.py      the sport catalogue: every per-sport difference
     ├── parsers/       base, FIT, TCX, GPX, factory
     ├── archives.py    reading a zip without trusting the zip
     ├── imports.py     importing an archive after the upload is answered
@@ -368,9 +386,9 @@ frontend/src/
 ```
 
 Plus `backend/alembic/` (migrations), `backend/scripts/` (demo generator,
-profile bootstrap, two backfills), tests beside each half, `demo/` (synthetic
-activities and a loader), `frontend/nginx.conf` (serves the build, proxies
-`/api`), `docker-compose.yml`, `.editorconfig` and
+profile bootstrap, two backfills, the sport catalogue export), tests beside
+each half, `demo/` (synthetic activities and a loader), `frontend/nginx.conf`
+(serves the build, proxies `/api`), `docker-compose.yml`, `.editorconfig` and
 `.github/workflows/ci.yml`.
 
 ## Contributing

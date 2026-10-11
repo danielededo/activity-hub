@@ -1,23 +1,29 @@
 import { useEffect, useState } from 'react'
-import { errorMessage, fetchProfile } from './api/client'
+import { errorMessage, fetchProfile, fetchSports } from './api/client'
 import Dashboard from './components/Dashboard'
 import FirstRunScreen from './components/FirstRunScreen'
 import Footer from './components/Footer'
+import { setSports } from './sports'
 
 /**
  * Decides between the first-run screen and the dashboard.
  *
  * A 404 from /users/me is not an error: it means nobody has introduced
  * themselves yet, which is exactly what the first-run screen is for.
+ *
+ * The sport catalogue is loaded alongside, and before anything renders: every
+ * label, pace and colour on the dashboard reads from it synchronously.
  */
 export default function App() {
   const [state, setState] = useState({ status: 'loading' })
 
   useEffect(() => {
     let cancelled = false
-    fetchProfile()
-      .then((profile) => {
-        if (!cancelled) setState({ status: 'ready', profile })
+    Promise.all([fetchProfile(), fetchSports()])
+      .then(([profile, sports]) => {
+        if (cancelled) return
+        setSports(sports)
+        setState({ status: 'ready', profile })
       })
       .catch((caught) => {
         if (!cancelled) setState({ status: 'error', message: errorMessage(caught) })

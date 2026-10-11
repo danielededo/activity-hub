@@ -2,6 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../src/App'
 import * as api from '../src/api/client'
+import { sportLabel } from '../src/utils/formatters'
+import sports from './sports.json'
 
 vi.mock('../src/api/client', async (importOriginal) =>
   (await import('./mockClient')).mockClient(importOriginal),
@@ -25,6 +27,9 @@ function stubDashboard() {
   api.fetchWeekly.mockResolvedValue({ user_id: 1, weeks: 12, buckets: [] })
   api.fetchWorkouts.mockResolvedValue({ items: [], total: 0, limit: 20, offset: 0 })
   api.fetchRecords.mockResolvedValue({ user_id: 1, by_sport: [], yearly: [] })
+  // Set every time: clearAllMocks keeps a stubbed value, so a test that makes
+  // the catalogue fail would otherwise fail every test after it.
+  api.fetchSports.mockResolvedValue(sports)
 }
 
 describe('App', () => {
@@ -59,6 +64,29 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: /cannot reach the api/i })).toBeVisible()
     expect(screen.getByRole('alert')).toHaveTextContent('Network Error')
+  })
+
+  it('loads the sport catalogue before showing the dashboard', async () => {
+    api.fetchProfile.mockResolvedValue(PROFILE)
+    api.fetchSports.mockResolvedValue([
+      { key: 'running', label: 'Trail running', rate: 'pace', cadence_unit: 'spm', color: 'running' },
+    ])
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Activity Hub' })).toBeVisible()
+    expect(api.fetchSports).toHaveBeenCalledOnce()
+    expect(sportLabel('running')).toBe('Trail running')
+  })
+
+  it('treats a catalogue it cannot load as an unreachable API', async () => {
+    // Every label and pace on the dashboard reads from it.
+    api.fetchProfile.mockResolvedValue(PROFILE)
+    api.fetchSports.mockRejectedValue(new Error('Network Error'))
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: /cannot reach the api/i })).toBeVisible()
   })
 
   it.each([

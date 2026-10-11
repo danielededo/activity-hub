@@ -1,3 +1,5 @@
+import { sportInfo } from './sports'
+
 /**
  * The categorical palette, in fixed slot order.
  *
@@ -24,7 +26,11 @@ const DARK = {
   other: '#c98500',
 }
 
-export const SPORT_ORDER = ['cycling', 'running', 'hiking', 'other']
+/**
+ * The palette's slots, in order. Named after the sports that first took them;
+ * every other sport is given one by the sport catalogue (its `color`).
+ */
+export const PALETTE_SLOTS = ['cycling', 'running', 'hiking', 'other']
 
 /** The single hue used when a chart shows one measure and needs no identity. */
 export const SINGLE_SERIES = { light: '#2a78d6', dark: '#3987e5' }
@@ -80,7 +86,7 @@ export const ORDINAL_RAMP = {
 
 export function sportColor(sport, dark = false) {
   const palette = dark ? DARK : LIGHT
-  return palette[sport] ?? palette.other
+  return palette[sportInfo(sport).color] ?? palette.other
 }
 
 export function palette(dark = false) {
@@ -98,5 +104,5 @@ export function palette(dark = false) {
  */
 export function seriesColors(count, dark = false) {
   const hues = palette(dark)
-  return SPORT_ORDER.slice(0, count).map((slot) => hues[slot])
+  return PALETTE_SLOTS.slice(0, count).map((slot) => hues[slot])
 }

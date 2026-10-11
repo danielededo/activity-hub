@@ -23,6 +23,7 @@ from app.services.parsers.base_parser import (
     ParsedWorkout,
     ParserError,
 )
+from app.services.sports import sport_from_file
 
 #: Bytes 8..12 of every FIT file. The header itself carries no other marker
 #: that a sniffing check could rely on.
@@ -35,19 +36,6 @@ FIT_SIGNATURE = b".FIT"
 #: shorter than it was. Converting one field by hand is cheaper than auditing
 #: every field the processor touches.
 DEGREES_PER_SEMICIRCLE = 180.0 / (2**31)
-
-#: FIT's own sport enum, as fitdecode names it, mapped onto our vocabulary.
-#: Anything unlisted keeps FIT's name, which is more use than "other".
-SPORT_ALIASES = {
-    "cycling": "cycling",
-    "running": "running",
-    "walking": "walking",
-    "hiking": "hiking",
-    "swimming": "swimming",
-    "generic": "other",
-    "training": "other",
-    "fitness_equipment": "other",
-}
 
 
 class FitParser(BaseParser):
@@ -194,8 +182,7 @@ class FitParser(BaseParser):
         declared = session.get("sport")
         if not declared and sport_messages:
             declared = sport_messages[0].get("sport")
-        name = str(declared).strip().lower() if declared else ""
-        return SPORT_ALIASES.get(name, name or "other")
+        return sport_from_file("fit", declared)
 
     def _source(self, file_id: dict) -> str:
         """The manufacturer's name, which is the nearest thing FIT has to a creator.

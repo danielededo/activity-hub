@@ -1,6 +1,8 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach, beforeEach, vi } from 'vitest'
+import { setSports } from '../src/sports'
+import sports from './sports.json'
 
 /**
  * Fail any test that makes React complain.
@@ -28,3 +30,10 @@ afterEach(() => {
     throw new Error(`React logged ${captured.length} error(s):\n${captured.join('\n')}`)
   }
 })
+
+/**
+ * The sport catalogue the app loads at startup, from a copy of what the API
+ * serves. backend/tests/test_sports.py fails if the copy drifts from the real
+ * thing, so it cannot quietly become a second definition.
+ */
+beforeEach(() => setSports(sports))

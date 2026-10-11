@@ -1,4 +1,5 @@
-import { SPORT_ORDER, sportColor } from '../theme'
+import { sportRank } from '../sports'
+import { sportColor } from '../theme'
 import { useColorScheme } from '../hooks/useColorScheme'
 import { formatDistance, formatDuration, sportLabel } from '../utils/formatters'
 
@@ -13,7 +14,7 @@ export default function SportBreakdown({ bySport }) {
   if (!bySport?.length) return null
 
   const ordered = [...bySport].sort(
-    (a, b) => SPORT_ORDER.indexOf(a.sport_type) - SPORT_ORDER.indexOf(b.sport_type),
+    (a, b) => sportRank(a.sport_type) - sportRank(b.sport_type),
   )
   const longest = Math.max(...ordered.map((row) => row.total_distance), 1)
 

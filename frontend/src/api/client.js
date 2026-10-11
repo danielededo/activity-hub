@@ -13,6 +13,12 @@ export function errorMessage(error, fallback = 'Something went wrong') {
   return error?.response?.data?.detail ?? error?.message ?? fallback
 }
 
+/** The sport catalogue: labels, pace or speed, cadence units, colours, order. */
+export async function fetchSports() {
+  const { data } = await http.get('/sports')
+  return data
+}
+
 /** The profile, or null when nobody has introduced themselves yet. */
 export async function fetchProfile() {
   try {

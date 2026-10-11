@@ -8,16 +8,7 @@ from app.services.parsers.base_parser import (
     ParsedWorkout,
     ParserError,
 )
-
-#: Garmin sport names mapped onto the vocabulary we store.
-SPORT_ALIASES = {
-    "biking": "cycling",
-    "running": "running",
-    "walking": "walking",
-    "swimming": "swimming",
-    "hiking": "hiking",
-    "other": "other",
-}
+from app.services.sports import sport_from_file
 
 
 class TcxParser(BaseParser):
@@ -77,8 +68,7 @@ class TcxParser(BaseParser):
     # -- internals -------------------------------------------------------
 
     def _sport_type(self, activity) -> str:
-        declared = (activity.get("Sport") or "").strip().lower()
-        return SPORT_ALIASES.get(declared, declared or "other")
+        return sport_from_file("tcx", activity.get("Sport"))
 
     def _name(self, activity, sport_type: str, start_time: datetime) -> str:
         notes = self._text(activity, "Notes")
