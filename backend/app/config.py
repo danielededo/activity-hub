@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     max_archive_extracted_bytes: int = 2 * 1024 * 1024 * 1024
     #: Members reported individually in the response; the counts are always exact.
     max_reported_members: int = 200
+    #: A running archive import that has not finished a file in this long is
+    #: taken to have lost its worker — a backend restart, most likely. One file
+    #: takes a second or two, and even one at the size cap well under a minute.
+    archive_import_stale_seconds: int = 300
 
     #: Two activities from the same user starting within this window and sharing
     #: a sport are treated as the same session exported twice.

@@ -200,6 +200,21 @@ def post_archive(client, user_id: int, content: bytes, name: str = "export.zip")
     )
 
 
+def import_archive(client, user_id: int, content: bytes) -> dict:
+    """Upload an archive and read its import once it has finished.
+
+    The import runs after the upload is answered; the test client runs that
+    background work before returning, so one read afterwards sees the end.
+    """
+    accepted = post_archive(client, user_id, content)
+    assert accepted.status_code == 202, accepted.text
+    finished = client.get(f"/api/upload/archive/{accepted.json()['id']}?user_id={user_id}")
+    assert finished.status_code == 200, finished.text
+    body = finished.json()
+    assert body["status"] == "done", body
+    return body
+
+
 def test_an_export_imports_every_activity(client, user):
     content = make_zip(
         {
@@ -209,7 +224,7 @@ def test_an_export_imports_every_activity(client, user):
         }
     )
 
-    body = post_archive(client, user["id"], content).json()
+    body = import_archive(client, user["id"], content)
 
     assert body["stored"] == 3
     assert body["duplicates"] == 0
@@ -228,7 +243,7 @@ def test_a_garmin_export_of_fit_files_imports(client, user):
         }
     )
 
-    body = post_archive(client, user["id"], content).json()
+    body = import_archive(client, user["id"], content)
 
     assert body["stored"] == 2
     assert body["failed"] == 0
@@ -240,9 +255,9 @@ def test_a_garmin_export_of_fit_files_imports(client, user):
 
 def test_reimporting_the_same_export_stores_nothing_twice(client, user):
     content = make_zip({"a.gpx": gpx("2026-06-01T07:00:00Z")})
-    assert post_archive(client, user["id"], content).json()["stored"] == 1
+    assert import_archive(client, user["id"], content)["stored"] == 1
 
-    body = post_archive(client, user["id"], content).json()
+    body = import_archive(client, user["id"], content)
 
     assert body["stored"] == 0
     assert body["duplicates"] == 1
@@ -259,7 +274,7 @@ def test_one_corrupt_file_does_not_stop_the_rest(client, user):
         }
     )
 
-    body = post_archive(client, user["id"], content).json()
+    body = import_archive(client, user["id"], content)
 
     assert body["stored"] == 2
     assert body["failed"] == 1
@@ -277,29 +292,25 @@ def test_a_mixed_export_reports_each_kind(client, user):
         }
     )
 
-    body = post_archive(client, user["id"], content).json()
+    body = import_archive(client, user["id"], content)
 
     assert (body["stored"], body["skipped"], body["failed"]) == (1, 2, 1)
 
 
 def test_an_empty_archive_is_not_an_error(client, user):
-    body = post_archive(client, user["id"], make_zip({})).json()
+    body = import_archive(client, user["id"], make_zip({}))
 
-    assert body == {
-        "stored": 0,
-        "duplicates": 0,
-        "skipped": 0,
-        "failed": 0,
-        "members": [],
-        "truncated": False,
-    }
+    counts = ("total", "processed", "stored", "duplicates", "skipped", "failed")
+    assert {key: body[key] for key in counts} == dict.fromkeys(counts, 0)
+    assert body["members"] == []
+    assert body["truncated"] is False
 
 
 def test_the_member_list_is_capped_but_the_counts_are_not(client, user, monkeypatch):
     monkeypatch.setattr(settings, "max_reported_members", 2)
     content = make_zip({f"skip-{index}.csv": b"x" for index in range(5)})
 
-    body = post_archive(client, user["id"], content).json()
+    body = import_archive(client, user["id"], content)
 
     assert body["skipped"] == 5
     assert len(body["members"]) == 2

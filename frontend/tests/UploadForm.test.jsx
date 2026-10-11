@@ -7,16 +7,33 @@ import * as api from '../src/api/client'
 vi.mock('../src/api/client', () => ({
   uploadWorkout: vi.fn(),
   uploadArchive: vi.fn(),
-  errorMessage: (error, fallback) => error?.response?.data?.detail ?? fallback,
+  fetchArchiveImport: vi.fn(),
+  errorMessage: (error, fallback) => error?.response?.data?.detail ?? error?.message ?? fallback,
 }))
 
 const file = (name) => new File(['<gpx/>'], name, { type: 'application/xml' })
 const zip = (name = 'export.zip') => new File(['PK\x03\x04'], name, { type: 'application/zip' })
 const empty = (name) => new File([], name, { type: 'application/xml' })
 
+/** An archive import that has finished; `running()` is one that has not. */
 function archiveResult(overrides = {}) {
-  return { stored: 0, duplicates: 0, skipped: 0, failed: 0, members: [], truncated: false, ...overrides }
+  return {
+    id: 7,
+    status: 'done',
+    total: 0,
+    processed: 0,
+    stored: 0,
+    duplicates: 0,
+    skipped: 0,
+    failed: 0,
+    members: [],
+    truncated: false,
+    error: null,
+    ...overrides,
+  }
 }
+
+const running = (overrides = {}) => archiveResult({ status: 'running', ...overrides })
 
 function rejectWith(status, detail) {
   return Object.assign(new Error(detail), { response: { status, data: { detail } } })
@@ -169,6 +186,96 @@ describe('UploadForm with an archive', () => {
     const summary = await screen.findByRole('status')
     expect(summary).toHaveTextContent('3 already here')
     expect(onUploaded).not.toHaveBeenCalled()
+  })
+})
+
+// -- following an import -------------------------------------------------
+
+describe('UploadForm following an archive import', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('polls a running import until it is done, then summarises it', async () => {
+    api.uploadArchive.mockResolvedValue(running({ total: 150 }))
+    api.fetchArchiveImport
+      .mockResolvedValueOnce(running({ total: 150, processed: 60, stored: 60 }))
+      .mockResolvedValueOnce(archiveResult({ total: 150, processed: 150, stored: 150 }))
+    const onUploaded = vi.fn()
+    render(<UploadForm userId={1} onUploaded={onUploaded} pollMs={0} />)
+
+    await userEvent.upload(screen.getByLabelText(/activity files/i), zip())
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('150 added'))
+    expect(api.fetchArchiveImport).toHaveBeenCalledTimes(2)
+    expect(api.fetchArchiveImport).toHaveBeenCalledWith(1, 7)
+    expect(onUploaded).toHaveBeenCalledOnce()
+  })
+
+  it('shows how far a running import has got', async () => {
+    api.uploadArchive.mockResolvedValue(running({ total: 150 }))
+    // Never settles: the import is still going when the test looks.
+    api.fetchArchiveImport.mockReturnValue(new Promise(() => {}))
+    render(<UploadForm userId={1} onUploaded={vi.fn()} pollMs={0} />)
+
+    await userEvent.upload(screen.getByLabelText(/activity files/i), zip('garmin.zip'))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Importing garmin.zip: 0 of 150 files…',
+    )
+  })
+
+  it('reports an import that stopped part-way, with what it did store', async () => {
+    api.uploadArchive.mockResolvedValue(running({ total: 150 }))
+    api.fetchArchiveImport.mockResolvedValue(
+      archiveResult({
+        status: 'interrupted',
+        total: 150,
+        processed: 40,
+        stored: 40,
+        error: 'The import stopped before it finished',
+      }),
+    )
+    const onUploaded = vi.fn()
+    render(<UploadForm userId={1} onUploaded={onUploaded} pollMs={0} />)
+
+    await userEvent.upload(screen.getByLabelText(/activity files/i), zip())
+
+    expect(await screen.findByText('Rejected')).toBeVisible()
+    expect(screen.getByText(/stopped before it finished \(40 added\)/)).toBeVisible()
+    // Forty activities did arrive, so the dashboard has something new to show.
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledOnce())
+  })
+
+  it('keeps following through a dropped poll', async () => {
+    api.uploadArchive.mockResolvedValue(running({ total: 3 }))
+    api.fetchArchiveImport
+      .mockRejectedValueOnce(new Error('Network Error'))
+      .mockResolvedValueOnce(archiveResult({ total: 3, processed: 3, stored: 3 }))
+    render(<UploadForm userId={1} onUploaded={vi.fn()} pollMs={0} />)
+
+    await userEvent.upload(screen.getByLabelText(/activity files/i), zip())
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('3 added'))
+  })
+
+  it('says the import may still be running when polling keeps failing', async () => {
+    api.uploadArchive.mockResolvedValue(running({ total: 3 }))
+    api.fetchArchiveImport.mockRejectedValue(new Error('Network Error'))
+    render(<UploadForm userId={1} onUploaded={vi.fn()} pollMs={0} />)
+
+    await userEvent.upload(screen.getByLabelText(/activity files/i), zip())
+
+    expect(await screen.findByText(/may still be running/)).toBeVisible()
+    expect(api.fetchArchiveImport).toHaveBeenCalledTimes(5)
+  })
+
+  it('treats a second archive refused while one imports as rejected, not as here', async () => {
+    api.uploadArchive.mockRejectedValue(rejectWith(409, 'Archive import 3 is still running'))
+    render(<UploadForm userId={1} onUploaded={vi.fn()} />)
+
+    await userEvent.upload(screen.getByLabelText(/activity files/i), zip())
+
+    expect(await screen.findByText('Rejected')).toBeVisible()
+    expect(screen.getByText(/still running/)).toBeVisible()
   })
 })
 

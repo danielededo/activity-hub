@@ -80,19 +80,30 @@ class ArchiveMemberRead(BaseModel):
     detail: str | None = None
 
 
-class ArchiveUploadRead(BaseModel):
-    """The result of unpacking an archive.
+class ArchiveImportRead(BaseModel):
+    """An export archive's import: where it has got to, or how it ended.
 
     The counts are always exact. `members` is capped, because a full export can
     hold thousands of files and nobody reads a thousand-line JSON list.
     """
 
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    filename: str
+    #: running | done | failed | interrupted
+    status: str
+    total: int
+    processed: int
     stored: int
     duplicates: int
     skipped: int
     failed: int
     members: list[ArchiveMemberRead]
     truncated: bool = False
+    error: str | None = None
+    created_at: datetime
+    finished_at: datetime | None = None
 
 
 class SportBreakdown(BaseModel):

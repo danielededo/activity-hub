@@ -296,9 +296,11 @@ def test_the_zip_this_app_writes_is_one_this_app_can_read(
         files={"file": ("activities.zip", exported, "application/zip")},
     )
 
-    assert restored.status_code == 200
-    body = restored.json()
-    assert (body["stored"], body["failed"]) == (2, 0)
+    assert restored.status_code == 202
+    body = client.get(
+        f"/api/upload/archive/{restored.json()['id']}?user_id={other_user['id']}"
+    ).json()
+    assert (body["status"], body["stored"], body["failed"]) == ("done", 2, 0)
 
 
 def test_the_zip_honours_the_filters(client, user, sample_tcx, sample_gpx):

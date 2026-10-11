@@ -89,6 +89,26 @@ merely simple: the near-duplicate check reads before it writes, so two files
 describing the same session could both pass it if they were handled at once —
 and the unique constraint would not catch them either, since their bytes differ.
 
+**An archive is imported after the upload is answered, not during it.** One
+activity takes a second or more to parse and store, so a full export is minutes
+of work. Done inside the request, 150 FIT files outlasted nginx's two minutes:
+the browser was shown a 504 at the halfway mark, while the import carried on and
+finished two minutes later with nobody watching. Now the upload checks what can
+refuse the archive as a whole — size, a readable zip, member count, the zip-bomb
+total, an import already running — answers `202`, and the work continues behind
+it, writing progress to an `archive_imports` row the dashboard polls.
+
+**One import at a time per user**, for the same reason as one member at a time:
+two imports racing could each store the same session from a different file.
+
+**A running import that goes quiet is reported as interrupted.** The worker
+writes a heartbeat after every file, and a worker that dies with the process
+cannot say it has stopped — without this its import would read `running` forever
+and refuse the next one. A file takes a second or two, so
+`ARCHIVE_IMPORT_STALE_SECONDS` (five minutes) is far from any real pause, and
+sending the archive again is cheap: files already stored are recognised by their
+hash before any parsing.
+
 **Duplicates are two questions, answered separately.** `(user_id, file_hash)` is
 unique, so the same bytes cannot be stored twice whatever the file is named —
 exact, and enforced by the database. That misses the same ride exported from
