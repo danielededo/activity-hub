@@ -39,6 +39,26 @@ quirk another's rule.
 has an entry — the name is more use than a bucket, and adding the entry later
 needs no backfill, because the stored key was right all along.
 
+**A FIT sub-sport can decide the sport.** Garmin records a strength session as
+sport `training`, sub-sport `strength_training`; the sport alone cannot tell it
+from any other gym session, so a sub-sport the catalogue lists wins over the
+sport. Only listed sub-sports count: `indoor_rowing` under `fitness_equipment`
+is still decided by its sport.
+
+**Strength has no distance, and the dashboard does not pretend.** A wrist in a
+gym logs a few metres of drift and a barometer a few metres of climb. Showing
+"35 m" and a pace for a set of squats would be reporting noise as a figure, so a
+sport marked `has_distance: False` loses its distance, pace, climb, route,
+distance records, comparison along a distance axis and its distance bar; it
+keeps time, heart rate, zones and training load, which mean the same thing in a
+gym as on a road. The figures are still stored as the file wrote them.
+
+**What a file declared is kept, so the catalogue can be re-applied.** Each
+parser stores the sport its file named (and FIT its sub-sport) in `raw_data`.
+`scripts/backfill_sports.py` re-runs the lookup over activities already stored,
+so a sport added later — strength was "other" until it had an entry — reaches
+the old ones too, without re-uploading anything.
+
 **Colour is a slot, not a hue.** The palette has four validated colours and a
 fifth picked by eye can be invisible to a colourblind reader, so a sport names
 one of the four slots. Most take "other"; the distinction a colour cannot carry

@@ -50,6 +50,10 @@ To try it without your own data, load the bundled demo set:
   that writes standard files. Re-uploading is safe: files already stored are
   skipped, and each file is reported separately as it lands. An export is
   imported in the background, with a running count of how far it has got.
+- **Cycling, running, hiking, walking, swimming and strength.** A Garmin
+  strength session is recognised by its sub-sport and shown by time and heart
+  rate, without the distance, pace and route it does not have. A sport the app
+  has no entry for keeps the name its file gave it.
 - **Lifetime totals** — distance, moving time, elevation, heart rate, with
   per-sport breakdowns, and a weekly trend over 8 to 52 weeks.
 - **Heart-rate zones and training load** — how much time goes into each of five
@@ -164,6 +168,17 @@ docker compose exec backend python -m scripts.backfill_hr_zones
 Both read one activity at a time, are safe to interrupt and safe to re-run, and
 only look at activities that need it. `--recompute` redoes everything, which is
 only needed if the calculation itself changes.
+
+When an update adds a sport — strength, for instance, which used to be stored
+as "other" — move the activities already stored to it:
+
+```bash
+docker compose exec backend python -m scripts.backfill_sports --dry-run   # see what would move
+docker compose exec backend python -m scripts.backfill_sports
+```
+
+It re-reads what each file declared, kept for this purpose, and renames an
+activity only if it still has the name the app generated for it.
 
 ## API
 
@@ -305,7 +320,8 @@ creates the profile from `DEFAULT_FIRST_NAME` instead of the first-run screen.
 
 Every sport is one entry in `backend/app/services/sports.py`: its key and label,
 whether it reads as pace or speed, its cadence unit, which of the four palette
-colours it takes, and what FIT, TCX and GPX files call it. The parsers and the
+colours it takes, whether it covers a distance at all, and what FIT, TCX and GPX
+files call it — for FIT, by sport or by sub-sport. The parsers and the
 dashboard both read that entry (the dashboard through `GET /api/sports`), so
 nothing else changes. Then regenerate the frontend tests' copy of the catalogue,
 which a backend test keeps in step:
@@ -315,13 +331,14 @@ cd backend && python -m scripts.export_sports
 ```
 
 A sport a file names that has no entry is still stored, under the file's own
-name, and shown by speed in the "other" colour.
+name, and shown by speed in the "other" colour. To move activities stored
+before the entry existed, run `python -m scripts.backfill_sports`.
 
 ### Tests
 
 ```bash
-cd backend && ruff check . && ruff format --check . && pytest   # 374 tests, no database needed
-cd frontend && npm run lint && npm test                        # 246 tests, jsdom
+cd backend && ruff check . && ruff format --check . && pytest   # 389 tests, no database needed
+cd frontend && npm run lint && npm test                        # 252 tests, jsdom
 ```
 
 The backend suite runs against in-memory SQLite, so there is nothing to
@@ -386,7 +403,7 @@ frontend/src/
 ```
 
 Plus `backend/alembic/` (migrations), `backend/scripts/` (demo generator,
-profile bootstrap, two backfills, the sport catalogue export), tests beside
+profile bootstrap, three backfills, the sport catalogue export), tests beside
 each half, `demo/` (synthetic activities and a loader), `frontend/nginx.conf`
 (serves the build, proxies `/api`), `docker-compose.yml`, `.editorconfig` and
 `.github/workflows/ci.yml`.

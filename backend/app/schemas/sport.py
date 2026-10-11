@@ -18,3 +18,4 @@ class SportRead(BaseModel):
     rate: Literal["pace", "speed"]
     cadence_unit: Literal["spm", "rpm"]
     color: Literal["cycling", "running", "hiking", "other"]
+    has_distance: bool

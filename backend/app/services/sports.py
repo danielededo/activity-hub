@@ -36,11 +36,20 @@ class Sport:
     #: `cad` are written per leg, so the figure is strides per minute (spm).
     cadence_unit: Literal["spm", "rpm"]
     color: ColorSlot
+    #: False for a sport that goes nowhere — strength, say. Distance, pace,
+    #: climb, the route and comparison along a distance axis mean nothing for
+    #: it, and the dashboard leaves them out rather than showing a zero.
+    has_distance: bool = True
     #: What each format writes for this sport, lowercased. FIT names are the
     #: ones fitdecode gives for FIT's sport enum.
     fit: tuple[str, ...] = ()
     tcx: tuple[str, ...] = ()
     gpx: tuple[str, ...] = ()
+    #: FIT sub-sports that make an activity this sport whatever its sport says.
+    #: Garmin records a strength session as sport "training", sub-sport
+    #: "strength_training" — the sport alone cannot tell it from any other
+    #: gym session.
+    fit_sub: tuple[str, ...] = ()
 
 
 #: In display order: the dashboard lists sports this way round.
@@ -97,6 +106,17 @@ SPORTS: tuple[Sport, ...] = (
         tcx=("swimming",),
     ),
     Sport(
+        "strength",
+        "Strength",
+        # Neither applies to a sport without distance; required all the same,
+        # so that every entry has the same shape.
+        rate="speed",
+        cadence_unit="rpm",
+        color=OTHER,
+        has_distance=False,
+        fit_sub=("strength_training",),
+    ),
+    Sport(
         OTHER,
         "Other",
         rate="speed",
@@ -115,13 +135,27 @@ _ALIASES: dict[FileFormat, dict[str, str]] = {
     for file_format in ("fit", "tcx", "gpx")
 }
 
+_FIT_SUB_ALIASES: dict[str, str] = {alias: sport.key for sport in SPORTS for alias in sport.fit_sub}
 
-def sport_from_file(file_format: FileFormat, declared: object) -> str:
+
+def _normalised(value: object) -> str:
+    return str(value).strip().lower() if value else ""
+
+
+def sport_from_fit_sub_sport(sub_sport: object) -> str | None:
+    """The sport a FIT sub-sport alone decides, or None if it decides nothing."""
+    return _FIT_SUB_ALIASES.get(_normalised(sub_sport))
+
+
+def sport_from_file(file_format: FileFormat, declared: object, sub_sport: object = None) -> str:
     """The sport to store for what a file says it is.
 
-    A name the catalogue does not know is kept as the file wrote it: "rowing"
-    is more use than "other", and it gets the dashboard's defaults until it has
-    an entry of its own. Only a file that names no sport at all is "other".
+    A FIT sub-sport the catalogue lists wins over the sport. Otherwise a name
+    the catalogue does not know is kept as the file wrote it: "rowing" is more
+    use than "other", and it gets the dashboard's defaults until it has an
+    entry of its own. Only a file that names no sport at all is "other".
     """
-    name = str(declared).strip().lower() if declared else ""
+    if file_format == "fit" and (by_sub_sport := sport_from_fit_sub_sport(sub_sport)):
+        return by_sub_sport
+    name = _normalised(declared)
     return _ALIASES[file_format].get(name, name or OTHER)

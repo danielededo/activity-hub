@@ -4,6 +4,7 @@ import CompareActivities from './CompareActivities'
 import RouteMap from './RouteMap'
 import TraceChart from './TraceChart'
 import ZoneBar from './ZoneBar'
+import { hasDistance } from '../sports'
 import {
   cadenceUnit,
   formatCadence,
@@ -73,6 +74,9 @@ export default function WorkoutDetail({ workout, userId, onClose }) {
   }, [workout.id, userId])
 
   const prepared = series ? withElapsed(series.items) : null
+  // A sport that goes nowhere — strength — has no distance, pace, climb or
+  // route worth a panel, even if the watch logged a few metres of drift.
+  const moves = hasDistance(workout.sport_type)
   const xFormatter = prepared?.timed ? undefined : (index) => `sample ${index}`
 
   return (
@@ -108,16 +112,16 @@ export default function WorkoutDetail({ workout, userId, onClose }) {
 
       <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
         {[
-          ['Distance', formatDistance(workout.total_distance)],
+          moves && ['Distance', formatDistance(workout.total_distance)],
           ['Time', formatDuration(workout.total_time)],
-          [
+          moves && [
             'Pace',
             formatPaceOrSpeed(workout.sport_type, workout.total_distance, workout.total_time),
           ],
-          ['Climb', formatElevation(workout.total_elevation_gain)],
+          moves && ['Climb', formatElevation(workout.total_elevation_gain)],
           ['Heart rate', formatHeartRate(workout.avg_heart_rate)],
           ['Cadence', formatCadence(workout.avg_cadence, workout.sport_type)],
-        ].map(([label, value]) => (
+        ].filter(Boolean).map(([label, value]) => (
           <div key={label}>
             <dt className="text-xs uppercase tracking-wide muted">
               {label}
@@ -140,17 +144,19 @@ export default function WorkoutDetail({ workout, userId, onClose }) {
       )}
 
       {prepared && (
-        <div className="mt-4 grid gap-6 *:min-w-0 lg:grid-cols-2">
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide muted">
-              Route
-            </h3>
-            <RouteMap samples={prepared.samples} sportType={workout.sport_type} />
-            <p className="text-xs muted">
-              {series.returned} of {series.total} samples
-              {series.stride > 1 && ` (every ${series.stride})`}
-            </p>
-          </div>
+        <div className={`mt-4 grid gap-6 *:min-w-0 ${moves ? 'lg:grid-cols-2' : ''}`}>
+          {moves && (
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide muted">
+                Route
+              </h3>
+              <RouteMap samples={prepared.samples} sportType={workout.sport_type} />
+              <p className="text-xs muted">
+                {series.returned} of {series.total} samples
+                {series.stride > 1 && ` (every ${series.stride})`}
+              </p>
+            </div>
+          )}
 
           <div className="space-y-6">
             {/* Heart rate then cadence then elevation: the two measures of
@@ -186,8 +192,9 @@ export default function WorkoutDetail({ workout, userId, onClose }) {
       )}
 
       {/* Last, because it is a question you ask after reading this activity —
-          not part of reading it. */}
-      <CompareActivities workout={workout} userId={userId} />
+          not part of reading it. Along a distance axis, so not for a sport
+          that goes nowhere. */}
+      {moves && <CompareActivities workout={workout} userId={userId} />}
     </section>
   )
 }

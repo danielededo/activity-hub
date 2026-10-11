@@ -105,6 +105,7 @@ def ride(
     *,
     points: int = 3,
     sport: int = 2,
+    sub_sport: int | None = None,
     with_position: bool = True,
     with_heart_rate: bool = True,
     local_offset_hours: int | None = 2,
@@ -113,7 +114,8 @@ def ride(
 ) -> bytes:
     """A small but complete activity file, with the awkward parts switchable.
 
-    `sport` is FIT's own enum: 1 running, 2 cycling, 11 walking, 17 hiking.
+    `sport` is FIT's own enum: 1 running, 2 cycling, 10 training, 11 walking,
+    17 hiking. `sub_sport` likewise: 20 is strength training.
     """
     builder = FitBuilder()
     builder.message(
@@ -137,6 +139,9 @@ def ride(
         builder.message(1, RECORD, fields)
 
     last = start + timedelta(seconds=10 * max(points - 1, 0))
+    sport_fields = [(5, ENUM, sport)]
+    if sub_sport is not None:
+        sport_fields.append((6, ENUM, sub_sport))
     if session_totals:
         builder.message(
             3,
@@ -144,7 +149,7 @@ def ride(
             [
                 (253, UINT32, fit_time(last)),
                 (2, UINT32, fit_time(start)),
-                (5, ENUM, sport),
+                *sport_fields,
                 # Deliberately unlike the samples, which span 20 seconds: the
                 # parser is supposed to take the device's figure, not derive one.
                 (8, UINT32, 1_800_000),  # total_timer_time: 1800 s, scaled by 1000
@@ -157,7 +162,7 @@ def ride(
             ],
         )
     else:
-        builder.message(3, SESSION, [(253, UINT32, fit_time(last)), (5, ENUM, sport)])
+        builder.message(3, SESSION, [(253, UINT32, fit_time(last)), *sport_fields])
 
     activity_fields = [(253, UINT32, fit_time(last))]
     if local_offset_hours is not None:

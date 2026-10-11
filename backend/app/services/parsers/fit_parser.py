@@ -81,7 +81,11 @@ class FitParser(BaseParser):
                 "manufacturer": file_id.get("manufacturer"),
                 "product": file_id.get("product") or file_id.get("garmin_product"),
                 "file_type": file_id.get("type"),
-                "sub_sport": session.get("sub_sport"),
+                # Kept as declared, so a sport added to the catalogue later can
+                # be applied to activities already stored: see
+                # scripts/backfill_sports.py.
+                "declared_sport": self._declared(session, messages["sport"], "sport"),
+                "sub_sport": self._declared(session, messages["sport"], "sub_sport"),
                 "session_count": len(messages["session"]),
                 "lap_count": len(messages["lap"]),
                 "record_count": len(messages["record"]),
@@ -178,11 +182,19 @@ class FitParser(BaseParser):
             return None
         return int((local - utc).total_seconds() // 60)
 
-    def _sport(self, session: dict, sport_messages: list[dict]) -> str:
-        declared = session.get("sport")
+    def _declared(self, session: dict, sport_messages: list[dict], field: str) -> Any:
+        """What the session says, or failing that the sport message."""
+        declared = session.get(field)
         if not declared and sport_messages:
-            declared = sport_messages[0].get("sport")
-        return sport_from_file("fit", declared)
+            declared = sport_messages[0].get(field)
+        return declared
+
+    def _sport(self, session: dict, sport_messages: list[dict]) -> str:
+        return sport_from_file(
+            "fit",
+            self._declared(session, sport_messages, "sport"),
+            self._declared(session, sport_messages, "sub_sport"),
+        )
 
     def _source(self, file_id: dict) -> str:
         """The manufacturer's name, which is the nearest thing FIT has to a creator.
