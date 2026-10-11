@@ -35,6 +35,24 @@ def test_the_same_bytes_are_rejected_under_a_different_name(client, user, sample
     assert "identical file" in second.json()["detail"]
 
 
+def test_identical_bytes_are_recognised_without_parsing(client, user, sample_gpx, monkeypatch):
+    """Parsing is most of the cost of a file, and a re-sent export is all repeats.
+
+    Measured on a 150-activity archive, the second send took 130 s with nothing
+    to store — long enough to time out at the proxy on its own.
+    """
+    assert upload(client, user["id"], sample_gpx, "run.gpx").status_code == 201
+
+    def parse_must_not_run(*_args, **_kwargs):
+        raise AssertionError("an identical file was parsed")
+
+    monkeypatch.setattr("app.services.workouts.parse_file", parse_must_not_run)
+    second = upload(client, user["id"], sample_gpx, "run-again.gpx")
+
+    assert second.status_code == 409
+    assert "identical file" in second.json()["detail"]
+
+
 def test_the_same_file_is_allowed_for_a_different_user(client, user, other_user, sample_gpx):
     """The hash is scoped per user: two people may ride together."""
     assert upload(client, user["id"], sample_gpx, "run.gpx").status_code == 201
