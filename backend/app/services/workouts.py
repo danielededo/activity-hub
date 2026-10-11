@@ -5,6 +5,7 @@ persist — can be tested and reused without going through HTTP.
 """
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
 
@@ -204,7 +205,12 @@ class ArchiveOutcome:
         setattr(self, counter, getattr(self, counter) + 1)
 
 
-def store_archive(db: Session, user_id: int, content: bytes) -> ArchiveOutcome:
+def store_archive(
+    db: Session,
+    user_id: int,
+    content: bytes,
+    on_member: Callable[[MemberOutcome, ArchiveOutcome], None] | None = None,
+) -> ArchiveOutcome:
     """Store every activity file in an archive, reporting each one.
 
     Members are processed one at a time on purpose. The near-duplicate check
@@ -215,11 +221,20 @@ def store_archive(db: Session, user_id: int, content: bytes) -> ArchiveOutcome:
 
     A member that fails is recorded and skipped over: an export with one corrupt
     file should still import the other three hundred.
+
+    `on_member` is called after each file with its outcome and the running
+    totals, which is how a background import reports progress.
     """
     if db.execute(select(User.id).where(User.id == user_id)).scalar_one_or_none() is None:
         raise UserNotFoundError(user_id)
 
     outcome = ArchiveOutcome()
+
+    def record(member_outcome: MemberOutcome) -> None:
+        outcome.record(member_outcome)
+        if on_member is not None:
+            on_member(member_outcome, outcome)
+
     for member in read_archive(
         content,
         max_members=settings.max_archive_members,
@@ -227,20 +242,20 @@ def store_archive(db: Session, user_id: int, content: bytes) -> ArchiveOutcome:
         max_member_bytes=settings.max_upload_bytes,
     ):
         if not member.usable:
-            outcome.record(MemberOutcome(member.name, SKIPPED, detail=member.skipped))
+            record(MemberOutcome(member.name, SKIPPED, detail=member.skipped))
             continue
 
         try:
             workout = store_workout(db, user_id, member.name, member.content)
         except DuplicateWorkoutError as exc:
-            outcome.record(MemberOutcome(member.name, DUPLICATE, exc.existing_id, exc.reason))
+            record(MemberOutcome(member.name, DUPLICATE, exc.existing_id, exc.reason))
         except ParserError as exc:
-            outcome.record(MemberOutcome(member.name, FAILED, detail=str(exc)))
+            record(MemberOutcome(member.name, FAILED, detail=str(exc)))
         except IntegrityError as exc:
             # Leave the session usable for the remaining members.
             db.rollback()
-            outcome.record(MemberOutcome(member.name, FAILED, detail=str(exc.orig)))
+            record(MemberOutcome(member.name, FAILED, detail=str(exc.orig)))
         else:
-            outcome.record(MemberOutcome(member.name, STORED, workout.id, workout.name))
+            record(MemberOutcome(member.name, STORED, workout.id, workout.name))
 
     return outcome

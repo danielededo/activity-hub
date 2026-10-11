@@ -27,6 +27,15 @@ class TimestampMixin:
     )
 
 
+def get_session_factory() -> sessionmaker:
+    """FastAPI dependency for work that outlives the request, such as an import.
+
+    A dependency rather than SessionLocal used directly, so the tests can point
+    background work at the same database as everything else.
+    """
+    return SessionLocal
+
+
 def get_db() -> Generator[Session, None, None]:
     """FastAPI dependency yielding a request-scoped session."""
     db = SessionLocal()

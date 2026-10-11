@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.database import Base, get_db
+from app.database import Base, get_db, get_session_factory
 from app.main import app
 from tests.fit_builder import ride
 
@@ -123,7 +123,7 @@ SAMPLE_GPX = b"""<?xml version="1.0" encoding="UTF-8"?>
 
 
 @pytest.fixture
-def db_session():
+def session_factory():
     """A fresh in-memory database per test, shared across connections."""
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
@@ -137,20 +137,27 @@ def db_session():
         cursor.close()
 
     Base.metadata.create_all(engine)
-    session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
-    session = session_factory()
     try:
-        yield session
+        yield sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     finally:
-        session.close()
         Base.metadata.drop_all(engine)
         engine.dispose()
 
 
 @pytest.fixture
-def client(db_session):
-    """TestClient wired to the in-memory database."""
+def db_session(session_factory):
+    session = session_factory()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+@pytest.fixture
+def client(db_session, session_factory):
+    """TestClient wired to the in-memory database, background work included."""
     app.dependency_overrides[get_db] = lambda: db_session
+    app.dependency_overrides[get_session_factory] = lambda: session_factory
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

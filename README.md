@@ -48,7 +48,8 @@ To try it without your own data, load the bundled demo set:
   whole export as a `.zip`. FIT is what a Garmin watch records and what a Garmin
   bulk export contains; TCX and GPX cover Strava, Komoot and everything else
   that writes standard files. Re-uploading is safe: files already stored are
-  skipped, and each file is reported separately as it lands.
+  skipped, and each file is reported separately as it lands. An export is
+  imported in the background, with a running count of how far it has got.
 - **Lifetime totals** — distance, moving time, elevation, heart rate, with
   per-sport breakdowns, and a weekly trend over 8 to 52 weeks.
 - **Heart-rate zones and training load** — how much time goes into each of five
@@ -181,7 +182,8 @@ Interactive docs at <http://localhost:8000/docs> when the stack is up.
 | GET | `/api/workouts/{id}/export.gpx?user_id=X` | This activity as GPX, rebuilt from its samples |
 | DELETE | `/api/workouts/{id}?user_id=X` | Cascades to track points; 404 if owned by someone else |
 | POST | `/api/upload?user_id=X` | Multipart `file`: one `.fit`, `.tcx` or `.gpx` |
-| POST | `/api/upload/archive?user_id=X` | Multipart `file`: a `.zip` export. Returns counts plus a per-file outcome |
+| POST | `/api/upload/archive?user_id=X` | Multipart `file`: a `.zip` export. `202` with an import that is still `running`; the files are imported after the answer |
+| GET | `/api/upload/archive/{id}?user_id=X` | An import's progress (`processed` of `total`), counts, a capped per-file outcome, and its `status`: `running`, `done`, `failed` or `interrupted` |
 | GET | `/api/analysis/{user_id}` | Lifetime totals plus a per-sport breakdown |
 | GET | `/api/analysis/{user_id}/weekly?weeks=12` | One bucket per local week, quiet weeks zero-filled |
 | GET | `/api/analysis/{user_id}/records` | Per-sport records and distance bests, plus totals by local year |
@@ -192,6 +194,10 @@ Interactive docs at <http://localhost:8000/docs> when the stack is up.
 
 Upload failures are explicit: `404` unknown user, `400` empty file, `409`
 already stored, `413` over the size limit, `422` unreadable or unsupported file.
+An archive is refused up front — `422` for a zip that is unreadable, holds too
+many files or claims too much uncompressed, `409` while another import is still
+running — and a file inside it that fails is reported in the import, not as an
+error of the upload.
 
 ## One user, no authentication
 
@@ -340,12 +346,13 @@ backend/app/
 ├── main.py            FastAPI app, CORS, router wiring
 ├── config.py          pydantic-settings, reads .env
 ├── database.py        engine, session, declarative base
-├── models/            User, Workout, TrackPoint, WorkoutBest
+├── models/            User, Workout, TrackPoint, WorkoutBest, ArchiveImport
 ├── schemas/           the request and response shapes
 ├── routers/           health, users, workouts, upload, analysis, export
 └── services/
     ├── parsers/       base, FIT, TCX, GPX, factory
     ├── archives.py    reading a zip without trusting the zip
+    ├── imports.py     importing an archive after the upload is answered
     ├── analyzer.py    metric derivation and aggregate reporting
     ├── records.py     the window scan, and records over it
     ├── zones.py       the heart-rate histogram, and zones over it

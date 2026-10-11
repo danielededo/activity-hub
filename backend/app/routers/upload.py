@@ -1,21 +1,29 @@
 """TCX/GPX upload endpoints, for one file or a whole export archive."""
 
-from dataclasses import asdict
-
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import settings
-from app.database import get_db
-from app.schemas import ArchiveMemberRead, ArchiveUploadRead, WorkoutRead
-from app.services.archives import SUFFIX_LIST, ArchiveError, looks_like_zip
+from app.database import get_db, get_session_factory
+from app.models import ArchiveImport
+from app.schemas import ArchiveImportRead, WorkoutRead
+from app.services.archives import SUFFIX_LIST, ArchiveError, check_archive, looks_like_zip
+from app.services.imports import ImportInProgressError, run_import, settle_if_stale, start_import
 from app.services.parsers import SUPPORTED_FORMATS, ParserError
 from app.services.uploads import EmptyUploadError, UploadTooLargeError, read_upload
 from app.services.workouts import (
     DuplicateWorkoutError,
     UserNotFoundError,
-    store_archive,
     store_workout,
     track_point_count,
 )
@@ -69,20 +77,24 @@ def upload_workout(
     )
 
 
-@router.post("/archive", response_model=ArchiveUploadRead, status_code=status.HTTP_200_OK)
+@router.post("/archive", response_model=ArchiveImportRead, status_code=status.HTTP_202_ACCEPTED)
 def upload_archive(
+    background: BackgroundTasks,
     user_id: int = Query(..., ge=1),
     file: UploadFile = File(..., description=f"A .zip holding {SUFFIX_LIST} files"),
     db: Session = Depends(get_db),
-) -> ArchiveUploadRead:
-    """Unpack an export archive and store every activity it holds.
+    session_factory: sessionmaker = Depends(get_session_factory),
+) -> ArchiveImportRead:
+    """Accept an export archive and import it after answering.
 
-    200 rather than 201: a mixed result is the normal one — some files new, some
-    already present, some not activities at all — so the status describes the
-    request succeeding and the body describes what happened to each file.
+    202, and an import to poll at GET /upload/archive/{id}: a full export takes
+    minutes, far past what a proxy holds a request open for. Everything that
+    can refuse the archive as a whole — size, not a zip, too many files, a zip
+    bomb, an unknown user, an import already running — is checked first, so a
+    refusal still comes back as this request's answer.
 
-    Sync for the same reason as the single-file route, and more so: this parses
-    and writes hundreds of files, none of which belongs on the event loop.
+    Sync for the same reason as the single-file route. The import itself runs
+    in the threadpool too, after the response, one file at a time.
     """
     try:
         content = read_upload(file, settings.max_archive_bytes)
@@ -100,20 +112,36 @@ def upload_archive(
         )
 
     try:
-        outcome = store_archive(db, user_id, content)
+        total = check_archive(
+            content,
+            max_members=settings.max_archive_members,
+            max_extracted_bytes=settings.max_archive_extracted_bytes,
+        )
+        job = start_import(db, user_id, file.filename or "archive.zip", total)
     except UserNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found") from exc
     except ArchiveError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
+    except ImportInProgressError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"{exc}: wait for it to finish before sending another archive",
+        ) from exc
 
-    reported = outcome.members[: settings.max_reported_members]
-    return ArchiveUploadRead(
-        stored=outcome.stored,
-        duplicates=outcome.duplicates,
-        skipped=outcome.skipped,
-        failed=outcome.failed,
-        members=[ArchiveMemberRead(**asdict(member)) for member in reported],
-        truncated=len(outcome.members) > len(reported),
-    )
+    background.add_task(run_import, job.id, content, session_factory)
+    return ArchiveImportRead.model_validate(job)
+
+
+@router.get("/archive/{import_id}", response_model=ArchiveImportRead)
+def get_archive_import(
+    import_id: int,
+    user_id: int = Query(..., ge=1),
+    db: Session = Depends(get_db),
+) -> ArchiveImportRead:
+    """Where an archive import has got to, or how it ended."""
+    job = db.get(ArchiveImport, import_id)
+    if job is None or job.user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Import not found")
+    return ArchiveImportRead.model_validate(settle_if_stale(db, job))

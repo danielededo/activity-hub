@@ -135,14 +135,26 @@ export async function uploadWorkout(userId, file) {
   return data
 }
 
-/** Unpack an export archive. Returns counts plus a capped per-member list. */
+/**
+ * Send an export archive. Answered as soon as it is accepted, with an import
+ * that is still running: follow it with fetchArchiveImport.
+ */
 export async function uploadArchive(userId, file) {
   const body = new FormData()
   body.append('file', file)
   const { data } = await http.post('/upload/archive', body, {
     params: { user_id: userId },
-    // A full export is hundreds of files to parse and insert, one at a time.
+    // Only the transfer now — the import happens after the answer — but a
+    // 200 MB export over a slow uplink still takes a while to send.
     timeout: 10 * 60_000,
+  })
+  return data
+}
+
+/** Where an archive import has got to: counts so far, or how it ended. */
+export async function fetchArchiveImport(userId, importId) {
+  const { data } = await http.get(`/upload/archive/${importId}`, {
+    params: { user_id: userId },
   })
   return data
 }

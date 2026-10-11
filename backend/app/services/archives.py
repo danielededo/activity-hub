@@ -89,6 +89,48 @@ def _read_bounded(handle, limit: int) -> bytes | None:
     return b"".join(chunks)
 
 
+def _open(content: bytes) -> zipfile.ZipFile:
+    try:
+        return zipfile.ZipFile(BytesIO(content))
+    except zipfile.BadZipFile as exc:
+        raise ArchiveError(f"Not a readable zip archive: {exc}") from exc
+
+
+def _checked_entries(
+    archive: zipfile.ZipFile, *, max_members: int, max_extracted_bytes: int
+) -> list[zipfile.ZipInfo]:
+    """The archive's files, or ArchiveError if the archive as a whole is refused."""
+    entries = [info for info in archive.infolist() if not info.is_dir()]
+
+    if len(entries) > max_members:
+        raise ArchiveError(
+            f"Archive holds {len(entries)} files, more than the {max_members} allowed"
+        )
+
+    declared = sum(info.file_size for info in entries)
+    if declared > max_extracted_bytes:
+        # Checked before reading anything: this is the zip-bomb signature.
+        raise ArchiveError(
+            f"Archive claims {declared} bytes uncompressed, "
+            f"more than the {max_extracted_bytes} allowed"
+        )
+    return entries
+
+
+def check_archive(content: bytes, *, max_members: int, max_extracted_bytes: int) -> int:
+    """How many files `content` holds, or ArchiveError if it would be refused.
+
+    Reads only the central directory, so it is cheap enough to answer while the
+    upload request is still open — which is when a refusal is worth something.
+    """
+    with _open(content) as archive:
+        return len(
+            _checked_entries(
+                archive, max_members=max_members, max_extracted_bytes=max_extracted_bytes
+            )
+        )
+
+
 def read_archive(
     content: bytes,
     *,
@@ -102,26 +144,10 @@ def read_archive(
     why, so the caller can report an honest per-file outcome. Raises
     ArchiveError only when the archive as a whole is unusable.
     """
-    try:
-        archive = zipfile.ZipFile(BytesIO(content))
-    except zipfile.BadZipFile as exc:
-        raise ArchiveError(f"Not a readable zip archive: {exc}") from exc
-
-    with archive:
-        entries = [info for info in archive.infolist() if not info.is_dir()]
-
-        if len(entries) > max_members:
-            raise ArchiveError(
-                f"Archive holds {len(entries)} files, more than the {max_members} allowed"
-            )
-
-        declared = sum(info.file_size for info in entries)
-        if declared > max_extracted_bytes:
-            # Checked before reading anything: this is the zip-bomb signature.
-            raise ArchiveError(
-                f"Archive claims {declared} bytes uncompressed, "
-                f"more than the {max_extracted_bytes} allowed"
-            )
+    with _open(content) as archive:
+        entries = _checked_entries(
+            archive, max_members=max_members, max_extracted_bytes=max_extracted_bytes
+        )
 
         for info in entries:
             name = info.filename

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { errorMessage, uploadArchive, uploadWorkout } from '../api/client'
+import { errorMessage, fetchArchiveImport, uploadArchive, uploadWorkout } from '../api/client'
 
 const ACTIVITY_SUFFIXES = ['.tcx', '.gpx', '.fit']
 const ARCHIVE_SUFFIXES = ['.zip']
@@ -13,6 +13,14 @@ const ACCEPT = ALL_SUFFIXES.join(',')
  * ceiling sits well above any plausible configuration.
  */
 const ABSURD_SIZE = 500 * 1024 * 1024
+
+/**
+ * How many polls in a row may fail before giving up on following an import.
+ * One dropped request on a flaky connection is no reason to stop watching.
+ */
+const MAX_POLL_MISSES = 5
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function suffixOf(name) {
   const lowered = name.toLowerCase()
@@ -34,17 +42,23 @@ function precheck(file) {
  * Strava export is hundreds of files, and minutes of silence with no counter
  * is indistinguishable from a hang.
  *
+ * An archive is imported by the server after the upload is answered — a full
+ * export takes minutes, past what any proxy holds a request open for — so it is
+ * followed by polling, with its own "n of m files" counter.
+ *
  * Sending is sequential, and that is load-bearing rather than merely simple.
  * The server's near-duplicate check reads before it writes, so two files
  * describing the same session could both pass it if they went up at once — and
  * the unique constraint would not catch them either, since their bytes differ.
+ * That includes waiting for an archive's import to end before the next file.
  */
-export default function UploadForm({ userId, onUploaded }) {
+export default function UploadForm({ userId, onUploaded, pollMs = 1000 }) {
   const fileInput = useRef(null)
   const folderInput = useRef(null)
   const [rows, setRows] = useState([])
   const [tally, setTally] = useState(null)
   const [progress, setProgress] = useState(null)
+  const [importing, setImporting] = useState(null)
   const [dragging, setDragging] = useState(false)
 
   function summarise(archive, filename) {
@@ -64,12 +78,16 @@ export default function UploadForm({ userId, onUploaded }) {
         detail: member.detail,
       }))
 
+    // An import that stopped part-way still stored what it got to, and says so.
+    const ended = archive.status === 'done'
+    const counted = parts.join(', ') || (ended ? 'nothing to import' : 'nothing imported')
+
     return {
       rows: [
         {
           name: filename,
-          state: archive.stored ? 'stored' : 'duplicate',
-          detail: parts.join(', ') || 'nothing to import',
+          state: !ended ? 'rejected' : archive.stored ? 'stored' : 'duplicate',
+          detail: ended ? counted : `${archive.error ?? 'the import stopped'} (${counted})`,
         },
         ...problems,
       ],
@@ -80,8 +98,37 @@ export default function UploadForm({ userId, onUploaded }) {
         stored: archive.stored,
         duplicate: archive.duplicates,
         skipped: archive.skipped,
-        rejected: archive.failed,
+        rejected: archive.failed + (ended ? 0 : 1),
       },
+    }
+  }
+
+  /** Poll an import until it is no longer running, showing how far it has got. */
+  async function follow(job, filename) {
+    let misses = 0
+    try {
+      while (job.status === 'running') {
+        setImporting({ name: filename, processed: job.processed, total: job.total })
+        await wait(pollMs)
+        try {
+          job = await fetchArchiveImport(userId, job.id)
+          misses = 0
+        } catch (caught) {
+          misses += 1
+          if (misses >= MAX_POLL_MISSES) {
+            // The import itself is most likely fine and still going: it is
+            // only the watching that failed.
+            throw new Error(
+              `Lost track of the import (${errorMessage(caught, 'no answer')}). ` +
+                'It may still be running: reload in a while to see what arrived.',
+              { cause: caught },
+            )
+          }
+        }
+      }
+      return job
+    } finally {
+      setImporting(null)
     }
   }
 
@@ -89,7 +136,8 @@ export default function UploadForm({ userId, onUploaded }) {
     const isArchive = ARCHIVE_SUFFIXES.includes(suffixOf(file.name))
     try {
       if (isArchive) {
-        return summarise(await uploadArchive(userId, file), file.name)
+        const job = await uploadArchive(userId, file)
+        return summarise(await follow(job, file.name), file.name)
       }
       const workout = await uploadWorkout(userId, file)
       return {
@@ -98,7 +146,9 @@ export default function UploadForm({ userId, onUploaded }) {
       }
     } catch (caught) {
       const status = caught?.response?.status
-      const state = status === 409 ? 'duplicate' : 'rejected'
+      // A 409 on one file means it is already stored. On an archive it means
+      // another import is still running, which is no reason to look settled.
+      const state = status === 409 && !isArchive ? 'duplicate' : 'rejected'
       return {
         rows: [
           { name: file.name, state, detail: errorMessage(caught, 'Upload failed') },
@@ -213,7 +263,9 @@ export default function UploadForm({ userId, onUploaded }) {
 
       {busy && (
         <p className="mt-3 text-sm muted" role="status">
-          Uploading {progress.done} of {progress.total}…
+          {importing
+            ? `Importing ${importing.name}: ${importing.processed} of ${importing.total} files…`
+            : `Uploading ${progress.done} of ${progress.total}…`}
         </p>
       )}
 
